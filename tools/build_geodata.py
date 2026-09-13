@@ -1,3 +1,4 @@
+# GEOIURIS · Antorcha Buenos Aires 2026 · generador geográfico v1.1
 import json, os, sys, time
 from pathlib import Path
 from urllib.parse import urlencode
@@ -74,7 +75,6 @@ def filter_buenos_aires_districts(gj):
         if 'buenos aires' in canton or 'buenos aires' in text or code.startswith('603'):
             out.append(f)
     if not out:
-        # bbox is tightly scoped to canton; retain intersecting features as fallback
         out = gj.get('features',[])
     return {'type':'FeatureCollection','features':out}
 
@@ -86,7 +86,6 @@ def build_districts():
     return len(ba['features'])
 
 def build_mep_schools():
-    # ArcGIS REST query, clipped to the route/canton working area.
     bbox='-83.60,8.90,-83.10,9.32'
     params={
       'where':'1=1','outFields':'*','returnGeometry':'true','f':'geojson',
