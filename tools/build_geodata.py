@@ -1,12 +1,12 @@
-# GEOIURIS · Antorcha Buenos Aires 2026 · generador geográfico v1.2
-import json, os, sys, time, re
+# GEOIURIS · Antorcha Buenos Aires 2026 · generador geográfico v1.3
+import json, os, sys, time, re, subprocess, tempfile
 from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / 'data'
-HEADERS = {'User-Agent': 'GEOIURIS-Antorcha-BuenosAires-2026/1.2 (contact: rcastellons@outlook.com)'}
+HEADERS = {'User-Agent': 'GEOIURIS-Antorcha-BuenosAires-2026/1.3 (contact: rcastellons@outlook.com)'}
 
 def fetch_json(url, timeout=60):
     req = Request(url, headers=HEADERS)
@@ -49,14 +49,17 @@ def build_routes(points):
     save_js(DATA/'route-snapped.js','ANTORCHA_ROUTE_SEGMENTS',segments)
     return segments
 
-def try_wfs(type_name, bbox):
-    params = {'service':'WFS','version':'1.0.0','request':'GetFeature','typeName':type_name,'outputFormat':'application/json','srsName':'EPSG:4326','bbox':','.join(map(str,bbox))+',EPSG:4326'}
-    urls = ['https://geos.snitcr.go.cr/be/IGN_5/wfs?' + urlencode(params),'http://geos.snitcr.go.cr/be/IGN_5/wfs?' + urlencode(params)]
-    last=None
-    for u in urls:
-        try: return fetch_json(u,90)
-        except Exception as e: last=e
-    raise last
+def ogr_wfs(type_name, bbox):
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td)/'layer.geojson'
+        cmd = [
+            'ogr2ogr','-f','GeoJSON',str(out),
+            'WFS:http://geos.snitcr.go.cr/be/IGN_5/wfs',type_name,
+            '-t_srs','EPSG:4326','-spat',str(bbox[0]),str(bbox[1]),str(bbox[2]),str(bbox[3]),
+            '-skipfailures'
+        ]
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=180)
+        return json.loads(out.read_text(encoding='utf-8'))
 
 def merge_feature_collections(collections):
     seen=set(); feats=[]
@@ -72,17 +75,16 @@ def filter_buenos_aires_districts(gj):
     for f in gj.get('features',[]):
         p={str(k).lower():v for k,v in (f.get('properties') or {}).items()}
         text=' '.join(str(v) for v in p.values()).lower()
-        canton = str(p.get('canton') or p.get('nom_canton') or p.get('canton_nom') or '').lower()
-        code = ''.join(ch for ch in str(p.get('cod_canton') or p.get('canton_id') or p.get('codigo') or '') if ch.isdigit())
+        canton = str(p.get('canton') or p.get('nom_canton') or p.get('canton_nom') or p.get('nom_cant') or '').lower()
+        code = ''.join(ch for ch in str(p.get('cod_canton') or p.get('canton_id') or p.get('codigo') or p.get('cod_cant') or '') if ch.isdigit())
         if 'buenos aires' in canton or 'buenos aires' in text or code.startswith('603'): out.append(f)
     return {'type':'FeatureCollection','features':out or gj.get('features',[])}
 
 def build_ign_vectors():
-    # Two working corridors keep the mobile payload smaller than downloading the whole cantón.
     bboxes=[(-83.38,8.97,-83.18,9.19),(-83.52,9.12,-83.31,9.27)]
-    districts=filter_buenos_aires_districts(try_wfs('IGN_5:limitedistrital_5k',(-83.60,8.88,-83.10,9.34)))
-    roads=merge_feature_collections([try_wfs('IGN_5:vias_5000',b) for b in bboxes])
-    hydro=merge_feature_collections([try_wfs('IGN_5:hidrografia_5000',b) for b in bboxes])
+    districts=filter_buenos_aires_districts(ogr_wfs('IGN_5:limitedistrital_5k',(-83.60,8.88,-83.10,9.34)))
+    roads=merge_feature_collections([ogr_wfs('IGN_5:vias_5000',b) for b in bboxes])
+    hydro=merge_feature_collections([ogr_wfs('IGN_5:hidrografia_5000',b) for b in bboxes])
     save_js(DATA/'distritos-buenosaires.js','ANTORCHA_DISTRICTS_GEOJSON',districts)
     save_js(DATA/'vias-snit.js','ANTORCHA_ROADS_GEOJSON',roads)
     save_js(DATA/'hidrografia-snit.js','ANTORCHA_HYDRO_GEOJSON',hydro)
@@ -90,19 +92,25 @@ def build_ign_vectors():
 
 def build_mep_schools():
     bbox='-83.60,8.88,-83.10,9.34'
-    params={'where':'1=1','outFields':'*','returnGeometry':'true','f':'geojson','geometry':bbox,'geometryType':'esriGeometryEnvelope','inSR':'4326','outSR':'4326','spatialRel':'esriSpatialRelIntersects'}
-    bases=['https://sig.mep.go.cr/server/rest/services/CE_Publicos_CR/MapServer/0/query?','https://sig.mep.go.cr/server/rest/services/CE_Publicos_CR/FeatureServer/0/query?']
-    last=None
+    params={
+      'where':'1=1','outFields':'*','returnGeometry':'true','f':'geojson',
+      'geometry':bbox,'geometryType':'esriGeometryEnvelope','inSR':'4326','outSR':'4326',
+      'spatialRel':'esriSpatialRelIntersects','resultRecordCount':'1000'
+    }
+    bases=[
+      'https://services1.arcgis.com/aWQmxJWy7lM2Qqmo/arcgis/rest/services/CE_Publicos_CR/FeatureServer/0/query?',
+      'https://services1.arcgis.com/aWQmxJWy7lM2Qqmo/arcgis/rest/services/CE_Publicos_CR/FeatureServer/1/query?'
+    ]
+    collections=[]
     for b in bases:
         try:
             gj=fetch_json(b+urlencode(params),90)
-            if gj.get('features') is not None:
-                save_js(DATA/'centros-educativos-mep.js','ANTORCHA_MEP_SCHOOLS_GEOJSON',gj)
-                return len(gj['features'])
-        except Exception as e: last=e
-    print('ADVERTENCIA: no se pudo descargar MEP:',repr(last),file=sys.stderr)
-    save_js(DATA/'centros-educativos-mep.js','ANTORCHA_MEP_SCHOOLS_GEOJSON',{'type':'FeatureCollection','features':[]})
-    return 0
+            if gj.get('features') is not None: collections.append(gj)
+        except Exception as e:
+            print('ADVERTENCIA MEP capa:',repr(e),file=sys.stderr)
+    merged=merge_feature_collections(collections) if collections else {'type':'FeatureCollection','features':[]}
+    save_js(DATA/'centros-educativos-mep.js','ANTORCHA_MEP_SCHOOLS_GEOJSON',merged)
+    return len(merged['features'])
 
 if __name__ == '__main__':
     pts=load_points()
