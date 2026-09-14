@@ -5,7 +5,11 @@
   const byNumber = new Map(points.map(p => [p.number, p]));
   const q = id => document.getElementById(id);
   let watchId = null, wakeLock = null, lastSentAt = 0, lastSentLoc = null, currentStep = -1;
-  let supabase = null, operatorKey = sessionStorage.getItem('antorcha_operator_key') || '';
+  let supabase = null, operatorKey = localStorage.getItem('antorcha_operator_key') || '';
+  const keySavedAt = Number(localStorage.getItem('antorcha_operator_key_saved_at') || 0);
+  if (operatorKey && keySavedAt && (Date.now()-keySavedAt) > 18*60*60*1000) {
+    operatorKey=''; localStorage.removeItem('antorcha_operator_key'); localStorage.removeItem('antorcha_operator_key_saved_at');
+  }
 
   function hav(a, b) { const R=6371000,r=Math.PI/180,d1=(b.lat-a.lat)*r,d2=(b.lon-a.lon)*r,l1=a.lat*r,l2=b.lat*r,h=Math.sin(d1/2)**2+Math.cos(l1)*Math.cos(l2)*Math.sin(d2/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
   function infer(loc) { let best={idx:0,d:Infinity}; sequence.forEach((n,i)=>{const p=byNumber.get(n);if(!p)return;const d=hav(loc,p);if(d<best.d)best={idx:i,d}}); currentStep=best.idx; if(currentStep===21){q('txNext').textContent='Pausa en punto 22 · reinicio 1:00 p. m. en punto 23';q('txPhase').textContent='Fin tramo mañana';return;} if(currentStep===22){q('txNext').textContent='Punto 23 · Sonador - PINDECO · 1:00 p. m.';q('txPhase').textContent='Inicio tramo tarde';return;} const np=byNumber.get(sequence[Math.min(currentStep+1,sequence.length-1)]);q('txNext').textContent=np?`Punto ${np.number} · ${np.name}`:'Recorrido completado';q('txPhase').textContent=currentStep<22?'Mañana':currentStep>=37?'Retorno':'Tarde'; }
@@ -37,17 +41,18 @@
       const mod=await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
       supabase=mod.createClient(sbCfg.url,sbCfg.publishableKey);
       q('backendBadge').textContent='Supabase conectado';
-      if(operatorKey){q('operatorKey').value=operatorKey; q('keyStatus').textContent='Clave cargada para esta sesión';}
+      if(operatorKey){q('operatorKey').value=operatorKey; q('keyStatus').textContent='Clave cargada para esta jornada';}
     }catch(e){console.error(e);q('backendBadge').textContent='Error conectando Supabase';}
   }
 
   q('saveKey').onclick=()=>{
     operatorKey=q('operatorKey').value.trim();
     if(!operatorKey){q('keyStatus').textContent='Ingrese la clave privada de transmisión';return;}
-    sessionStorage.setItem('antorcha_operator_key',operatorKey);
-    q('keyStatus').textContent='Clave guardada únicamente en esta sesión del navegador';
+    localStorage.setItem('antorcha_operator_key',operatorKey);
+    localStorage.setItem('antorcha_operator_key_saved_at', String(Date.now()));
+    q('keyStatus').textContent='Clave guardada en este teléfono para la jornada';
   };
-  q('clearKey').onclick=()=>{operatorKey='';sessionStorage.removeItem('antorcha_operator_key');q('operatorKey').value='';q('keyStatus').textContent='Clave eliminada de esta sesión';};
+  q('clearKey').onclick=()=>{operatorKey='';localStorage.removeItem('antorcha_operator_key');localStorage.removeItem('antorcha_operator_key_saved_at');q('operatorKey').value='';q('keyStatus').textContent='Clave eliminada de este teléfono';};
 
   async function rpcUpdate(payload){
     if(!supabase) throw new Error('Supabase no está conectado');
