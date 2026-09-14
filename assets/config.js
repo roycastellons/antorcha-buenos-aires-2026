@@ -18,17 +18,18 @@ window.ANTORCHA_CONFIG = {
     }
   },
   map: {
+    openFreeMapStyle: 'https://tiles.openfreemap.org/styles/liberty',
     providers: [
       {
-        name: 'OpenStreetMap',
-        tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19
+        name: 'OpenStreetMap France (respaldo)',
+        tileUrl: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+        attribution: '&copy; OpenStreetMap contributors · OpenStreetMap France',
+        maxZoom: 20
       },
       {
-        name: 'Esri World Street Map (respaldo)',
-        tileUrl: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-        attribution: 'Tiles &copy; Esri',
+        name: 'OpenStreetMap Deutschland (respaldo)',
+        tileUrl: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+        attribution: '&copy; OpenStreetMap contributors · FOSSGIS e.V.',
         maxZoom: 19
       }
     ]
