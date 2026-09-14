@@ -1,0 +1,29 @@
+name: Package v1.1
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/package-v1-1.yml'
+permissions:
+  contents: read
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare package
+        run: |
+          rm -rf .git .github/tools-cache || true
+          mkdir -p dist/antorcha_buenos_aires_2026_v1.1
+          shopt -s dotglob
+          for f in *; do
+            if [ "$f" != "dist" ]; then cp -R "$f" dist/antorcha_buenos_aires_2026_v1.1/; fi
+          done
+          cd dist
+          zip -qr antorcha_buenos_aires_2026_v1.1.zip antorcha_buenos_aires_2026_v1.1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: antorcha-buenos-aires-2026-v1-1
+          path: dist/antorcha_buenos_aires_2026_v1.1.zip
+          if-no-files-found: error
+          retention-days: 30
