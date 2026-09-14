@@ -29,5 +29,6 @@ jobs:
             echo "No generated changes"
           else
             git commit -m "Actualiza geodatos oficiales y recorrido vial"
-            git push
+            git pull --rebase origin main
+            git push origin main
           fi
