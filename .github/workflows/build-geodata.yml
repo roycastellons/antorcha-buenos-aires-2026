@@ -22,7 +22,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for f in data/route-snapped.js data/distritos-buenosaires.js data/vias-snit.js data/hidrografia-snit.js data/centros-educativos-mep.js; do
+          for f in data/route-snapped.js data/distritos-buenosaires.js data/distritos-buenosaires-snit.js data/vias-snit.js data/hidrografia-snit.js data/centros-educativos-mep.js; do
             if [ -f "$f" ]; then git add "$f"; fi
           done
           if git diff --cached --quiet; then
