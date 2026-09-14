@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - 'tools/build_geodata.py'
+      - '.github/workflows/build-geodata.yml'
 permissions:
   contents: write
 jobs:
